@@ -1,8 +1,14 @@
 package dev.moaz.dash_bubble
 
+import android.Manifest
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import dev.moaz.dash_bubble.src.BroadcastListener
 import dev.moaz.dash_bubble.src.BubbleManager
@@ -25,8 +31,13 @@ import io.flutter.plugin.common.PluginRegistry
 class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     PluginRegistry.ActivityResultListener, PluginRegistry.RequestPermissionsResultListener {
 
+    companion object {
+        private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 1001
+    }
+
     private var activityBinding: ActivityPluginBinding? = null
     private lateinit var mActivity: Activity
+    private lateinit var context: Context
     private lateinit var channel: MethodChannel
     private lateinit var delayedResultHandler: Result
     private lateinit var broadcastListener: BroadcastListener
@@ -38,15 +49,11 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, Constants.METHOD_CHANNEL)
         channel.setMethodCallHandler(this)
+        context = flutterPluginBinding.applicationContext
     }
 
-    /** This method is the handler for the method calls from dart side
-     * It handles all the method calls and calls the appropriate method from the bubble manager
-
-     
-     */
-
-     private fun hasNotificationPermission(): Boolean {
+    /** Enhanced notification permission checking for Android 13+ */
+    private fun hasNotificationPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(
                 context,
@@ -57,11 +64,12 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         }
     }
 
+    /** Request notification permission for Android 13+ */
     private fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (activity != null) {
+            if (::mActivity.isInitialized) {
                 ActivityCompat.requestPermissions(
-                    activity!!,
+                    mActivity,
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_REQUEST_CODE
                 )
@@ -69,21 +77,9 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         }
     }
 
-    override fun onMethodCall(call: MethodCall, result: Result) {
-        when (call.method) {
-            // ... existing methods ...
-            
-            "hasNotificationPermission" -> {
-                result.success(hasNotificationPermission())
-            }
-            "requestNotificationPermission" -> {
-                requestNotificationPermission()
-                result.success(null)
-            }
-            // ... rest of existing methods ...
-        }
-    }
-    
+    /** This method is the handler for the method calls from dart side
+     * It handles all the method calls and calls the appropriate method from the bubble manager
+     */
     override fun onMethodCall(call: MethodCall, result: Result) {
         try {
             when (call.method) {
@@ -92,7 +88,6 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                         result.success(true)
                         return
                     }
-
                     delayedResultHandler = result
                 }
                 Constants.HAS_OVERLAY_PERMISSION -> result.success(bubbleManager.hasOverlayPermission())
@@ -101,7 +96,6 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                         result.success(true)
                         return
                     }
-
                     delayedResultHandler = result
                 }
                 Constants.HAS_POST_NOTIFICATIONS_PERMISSION -> result.success(bubbleManager.hasPostNotificationsPermission())
@@ -113,6 +107,16 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     )
                 )
                 Constants.STOP_BUBBLE -> result.success(bubbleManager.stopBubble())
+                
+                // Enhanced notification permission methods
+                "hasNotificationPermission" -> {
+                    result.success(hasNotificationPermission())
+                }
+                "requestNotificationPermission" -> {
+                    requestNotificationPermission()
+                    result.success(null)
+                }
+                
                 else -> result.notImplemented()
             }
         } catch (e: Exception) {
@@ -140,17 +144,17 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         activityBinding = binding
         mActivity = binding.activity
 
-        binding.addActivityResultListener(this);
+        binding.addActivityResultListener(this)
         binding.addRequestPermissionsResultListener(this)
 
         bubbleManager = BubbleManager(mActivity)
         broadcastListener = BroadcastListener(channel)
 
         val intentFilter = IntentFilter()
-        intentFilter.addAction(Constants.ON_TAP);
-        intentFilter.addAction(Constants.ON_TAP_DOWN);
-        intentFilter.addAction(Constants.ON_TAP_UP);
-        intentFilter.addAction(Constants.ON_MOVE);
+        intentFilter.addAction(Constants.ON_TAP)
+        intentFilter.addAction(Constants.ON_TAP_DOWN)
+        intentFilter.addAction(Constants.ON_TAP_UP)
+        intentFilter.addAction(Constants.ON_MOVE)
 
         LocalBroadcastManager.getInstance(mActivity)
             .registerReceiver(broadcastListener, intentFilter)
@@ -158,17 +162,15 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     /** This method is called when the activity is recreated */
     override fun onDetachedFromActivityForConfigChanges() {
-        activityBinding?.removeActivityResultListener(this);
+        activityBinding?.removeActivityResultListener(this)
         activityBinding?.removeRequestPermissionsResultListener(this)
-
         activityBinding = null
     }
 
     /** This method is called when the activity is recreated */
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activityBinding = binding
-
-        binding.addActivityResultListener(this);
+        binding.addActivityResultListener(this)
         binding.addRequestPermissionsResultListener(this)
     }
 
@@ -176,12 +178,13 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
      * It removes the activity result listener and unregisters the broadcast receiver
      */
     override fun onDetachedFromActivity() {
-        activityBinding?.removeActivityResultListener(this);
+        activityBinding?.removeActivityResultListener(this)
         activityBinding?.removeRequestPermissionsResultListener(this)
-
         activityBinding = null
 
-        LocalBroadcastManager.getInstance(mActivity).unregisterReceiver(broadcastListener)
+        if (::mActivity.isInitialized && ::broadcastListener.isInitialized) {
+            LocalBroadcastManager.getInstance(mActivity).unregisterReceiver(broadcastListener)
+        }
     }
 
     /** This method is called whenever an action that has an activity result is completed */
@@ -190,7 +193,6 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             delayedResultHandler.success(bubbleManager.hasOverlayPermission())
             return true
         }
-
         return false
     }
 
@@ -200,11 +202,19 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         permissions: Array<out String>,
         grantResults: IntArray
     ): Boolean {
-        if (requestCode == Constants.POST_NOTIFICATIONS_PERMISSION_REQUEST_CODE) {
-            delayedResultHandler.success(bubbleManager.hasPostNotificationsPermission())
-            return true
+        when (requestCode) {
+            Constants.POST_NOTIFICATIONS_PERMISSION_REQUEST_CODE -> {
+                delayedResultHandler.success(bubbleManager.hasPostNotificationsPermission())
+                return true
+            }
+            NOTIFICATION_PERMISSION_REQUEST_CODE -> {
+                // Handle the enhanced notification permission result
+                val granted = grantResults.isNotEmpty() && 
+                             grantResults[0] == PackageManager.PERMISSION_GRANTED
+                // You can add additional handling here if needed
+                return true
+            }
         }
-
         return false
     }
 }
