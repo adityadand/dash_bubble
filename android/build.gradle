@@ -26,6 +26,7 @@ apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-parcelize'
 
 android {
+	namespace 'dev.moaz.dash_bubble' 
     compileSdkVersion 33
 
     compileOptions {
