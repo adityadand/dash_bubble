@@ -64,3 +64,12 @@ class BubbleService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Bubble Service")
+            .setContentText("Bubble is running")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+    }
+}
