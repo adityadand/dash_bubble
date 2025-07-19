@@ -51,6 +51,24 @@ class BubbleService : FloatingBubbleService() {
     /** Defines the notification channel name */
     override fun channelName() = notificationOptions.channelName!!
 
+    private fun createNotificationChannel() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Bubble Service Channel",
+            NotificationManager.IMPORTANCE_LOW  // Changed from MIN to LOW for better compatibility
+        ).apply {
+            description = "Channel for bubble service notifications"
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_SECRET
+        }
+        
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
+    }
+}
+
+
     /** This method defines the main setup of the bubble. */
     override fun setupBubble(action: FloatingBubble.Action): FloatingBubble.Builder {
         val bubbleIcon = Helpers.getDrawableId(
