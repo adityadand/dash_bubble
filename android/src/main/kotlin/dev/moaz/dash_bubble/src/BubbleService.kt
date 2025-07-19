@@ -1,143 +1,66 @@
 package dev.moaz.dash_bubble.src
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.torrydo.floatingbubbleview.BubbleBehavior
-import com.torrydo.floatingbubbleview.FloatingBubble
-import com.torrydo.floatingbubbleview.FloatingBubbleService
-import com.torrydo.floatingbubbleview.Route
-import dev.moaz.dash_bubble.R
 
-/** BubbleService is the service that will be started when the bubble is started. */
-class BubbleService : FloatingBubbleService() {
-    private lateinit var bubbleOptions: BubbleOptions
-    private lateinit var notificationOptions: NotificationOptions
+class BubbleService : Service() {
+    
+    companion object {
+        private const val CHANNEL_ID = "bubble_service_channel"
+        private const val NOTIFICATION_ID = 1
+    }
 
-    /** This method is called when the service is started
-     * It initializes the bubble with the options passed to from the intent and starts the service.
-     */
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification())
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        bubbleOptions = intent?.getParcelableExtra(Constants.BUBBLE_OPTIONS_INTENT_EXTRA)!!
-        notificationOptions = intent.getParcelableExtra(Constants.NOTIFICATION_OPTIONS_INTENT_EXTRA)!!
-
-        showBubbles()
-        showNotification()
-
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
-    /** This method is called when the service is created.
-     * It is setting the initial route of the bubble to be empty to avoid calling setupBubble method automatically.
-     */
-    override fun initialRoute(): Route {
-        return Route.Empty
+    override fun onDestroy() {
+        super.onDestroy()
+        stopForeground(true)
     }
-
-    /** This method is called when the service is created.
-     * It defines the initial configuration of the notification that will be shown when the bubble is running.
-     * It works only for android 8 and higher
-     */
-    override fun initialNotification(): Notification? {
-        return null;
-    }
-
-    /** Defines the notification id */
-    override fun notificationId() = notificationOptions.id!!
-
-    /** Defines the notification channel id */
-    override fun channelId() = notificationOptions.channelId!!
-
-    /** Defines the notification channel name */
-    override fun channelName() = notificationOptions.channelName!!
 
     private fun createNotificationChannel() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Bubble Service Channel",
-            NotificationManager.IMPORTANCE_LOW  // Changed from MIN to LOW for better compatibility
-        ).apply {
-            description = "Channel for bubble service notifications"
-            setShowBadge(false)
-            lockscreenVisibility = Notification.VISIBILITY_SECRET
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Bubble Service Channel",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Channel for bubble service notifications"
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+            }
+            
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
         }
-        
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(channel)
     }
-}
 
-
-    /** This method defines the main setup of the bubble. */
-    override fun setupBubble(action: FloatingBubble.Action): FloatingBubble.Builder {
-        val bubbleIcon = Helpers.getDrawableId(
-            applicationContext,
-            bubbleOptions.bubbleIcon,
-            R.drawable.default_bubble_icon
+    private fun createNotification(): Notification {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 
+            0, 
+            intent, 
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val closeIcon = Helpers.getDrawableId(
-            applicationContext,
-            bubbleOptions.closeIcon,
-            R.drawable.default_bubble_icon
-        )
-
-        return FloatingBubble.Builder(this)
-            .bubble(
-                bubbleIcon,
-                bubbleOptions.bubbleSize!!.toInt(),
-                bubbleOptions.bubbleSize!!.toInt()
-            )
-            .bubbleStyle(null)
-            .startLocation(
-                bubbleOptions.startLocationX!!.toInt(),
-                bubbleOptions.startLocationY!!.toInt()
-            )
-            .enableAnimateToEdge(bubbleOptions.enableAnimateToEdge!!)
-            .closeBubble(
-                closeIcon,
-                bubbleOptions.bubbleSize!!.toInt(),
-                bubbleOptions.bubbleSize!!.toInt()
-            )
-            .closeBubbleStyle(null)
-            .enableCloseBubble(bubbleOptions.enableClose!!)
-            .bottomBackground(bubbleOptions.enableBottomShadow!!)
-            .opacity(bubbleOptions.opacity!!.toFloat())
-            .behavior(BubbleBehavior.values()[bubbleOptions.closeBehavior!!])
-            .distanceToClose(bubbleOptions.distanceToClose!!.toInt())
-            .addFloatingBubbleListener(BubbleCallbackListener(this))
-    }
-
-    /** This method defines the notification configuration and shows it. */
-    private fun showNotification() {
-        val notificationTitle =
-            notificationOptions.title ?: Helpers.getApplicationName(applicationContext)
-
-        val notificationIcon = Helpers.getDrawableId(
-            applicationContext,
-            notificationOptions.icon,
-            R.drawable.default_bubble_icon
-        )
-
-        val notification = NotificationCompat.Builder(this, channelId())
-            .setOngoing(true)
-            .setContentTitle(notificationTitle)
-            .setContentText(notificationOptions.body)
-            .setSmallIcon(notificationIcon)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .build()
-
-        notify(notification)
-    }
-
-    /** This method is called when the app is closed.
-     * It stops the service if the keepAliveWhenAppExit option is false.
-     */
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-
-        if (!bubbleOptions.keepAliveWhenAppExit!!) stopSelf()
-    }
-}
+        return NotificationCompat.Builder(this, CHANNEL_ID)
