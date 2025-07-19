@@ -62,7 +62,7 @@ class BubbleService : FloatingBubbleService() {
         val closeIcon = Helpers.getDrawableId(
             applicationContext,
             bubbleOptions.closeIcon,
-            R.drawable.ic_close_bubble
+            R.drawable.default_bubble_icon
         )
 
         return FloatingBubble.Builder(this)
