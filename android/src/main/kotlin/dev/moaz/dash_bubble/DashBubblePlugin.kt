@@ -42,7 +42,48 @@ class DashBubblePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
 
     /** This method is the handler for the method calls from dart side
      * It handles all the method calls and calls the appropriate method from the bubble manager
+
+     
      */
+
+     private fun hasNotificationPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (activity != null) {
+                ActivityCompat.requestPermissions(
+                    activity!!,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_REQUEST_CODE
+                )
+            }
+        }
+    }
+
+    override fun onMethodCall(call: MethodCall, result: Result) {
+        when (call.method) {
+            // ... existing methods ...
+            
+            "hasNotificationPermission" -> {
+                result.success(hasNotificationPermission())
+            }
+            "requestNotificationPermission" -> {
+                requestNotificationPermission()
+                result.success(null)
+            }
+            // ... rest of existing methods ...
+        }
+    }
+    
     override fun onMethodCall(call: MethodCall, result: Result) {
         try {
             when (call.method) {
